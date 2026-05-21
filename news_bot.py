@@ -153,7 +153,6 @@ def build_message():
 
     return message
 
-
 def send_telegram(text):
 
     url = (
@@ -161,7 +160,7 @@ def send_telegram(text):
         f"{BOT_TOKEN}/sendMessage"
     )
 
-    requests.post(
+    response = requests.post(
         url,
         data={
             "chat_id": CHAT_ID,
@@ -169,6 +168,10 @@ def send_telegram(text):
         }
     )
 
+    print(response.status_code)
+    print(response.text)
+
+    response.raise_for_status()
 
 if __name__ == "__main__":
 
