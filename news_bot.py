@@ -1,4 +1,5 @@
 import os
+import html
 import feedparser
 import requests
 
@@ -22,7 +23,6 @@ KEYWORD_GROUPS = {
         "보이넥스트도어", "TWS", "투어스",
         "캣츠아이", "KATSEYE", "&TEAM", "아일릿"
     ],
-
     "유통": [
         "이마트", "홈플러스",
         "롯데백화점", "현대백화점",
@@ -36,13 +36,6 @@ KEYWORD_GROUPS = {
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-
-
-def escape_markdown(text):
-    special_chars = "\\`*_{}[]()#+-.!|"
-    for char in special_chars:
-        text = text.replace(char, "\\" + char)
-    return text
 
 
 def normalize_title(title):
@@ -98,7 +91,7 @@ def build_message():
     today = datetime.now().strftime("%Y-%m-%d")
 
     message = (
-        f"[{today} 유통/엔터 뉴스]\n"
+        f"<b>[{today} 유통/엔터 뉴스]</b>\n"
         f"최근 48시간 기준\n\n"
     )
 
@@ -128,39 +121,48 @@ def build_message():
             reverse=True
         )
 
-        message += f"■ {group_name}\n"
+        message += f"<b>■ {html.escape(group_name)}</b>\n"
 
         for idx, article in enumerate(group_articles[:15], 1):
-            keyword = escape_markdown(article["keyword"])
-            title = escape_markdown(article["title"])
-            link = article["link"]
+            keyword = html.escape(article["keyword"])
+            title = html.escape(article["title"])
+            link = html.escape(article["link"])
 
-            message += f"{idx}. [{keyword}] [{title}]({link})\n"
+            message += (
+                f'{idx}. [{keyword}] '
+                f'<a href="{link}">{title}</a>\n'
+            )
 
         message += "\n"
         total_count += len(group_articles[:15])
 
     if total_count == 0:
-        message += (
-            "최근 48시간 내 "
-            "유통/엔터 관련 뉴스가 없습니다."
-        )
+        message += "최근 48시간 내 유통/엔터 관련 뉴스가 없습니다."
 
     return message
 
 
+def split_message(text, max_length=3500):
+    chunks = []
+    current = ""
+
+    for line in text.splitlines(keepends=True):
+        if len(current) + len(line) > max_length:
+            chunks.append(current)
+            current = line
+        else:
+            current += line
+
+    if current:
+        chunks.append(current)
+
+    return chunks
+
+
 def send_telegram(text):
-    url = (
-        f"https://api.telegram.org/bot"
-        f"{BOT_TOKEN}/sendMessage"
-    )
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-    max_length = 3500
-
-    chunks = [
-        text[i:i + max_length]
-        for i in range(0, len(text), max_length)
-    ]
+    chunks = split_message(text)
 
     for chunk in chunks:
         response = requests.post(
@@ -168,7 +170,8 @@ def send_telegram(text):
             data={
                 "chat_id": CHAT_ID,
                 "text": chunk,
-                "parse_mode": "MarkdownV2"
+                "parse_mode": "HTML",
+                "disable_web_page_preview": True
             }
         )
 
