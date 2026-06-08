@@ -38,6 +38,12 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 
+def clean_title(title):
+    if " - " in title:
+        title = title.rsplit(" - ", 1)[0]
+    return title.strip()
+
+
 def normalize_title(title):
     return (
         title.replace(" ", "")
@@ -46,6 +52,21 @@ def normalize_title(title):
         .replace("]", "")
         .lower()
     )
+
+
+def get_original_url(url):
+    try:
+        response = requests.get(
+            url,
+            allow_redirects=True,
+            timeout=10,
+            headers={
+                "User-Agent": "Mozilla/5.0"
+            }
+        )
+        return response.url
+    except Exception:
+        return url
 
 
 def fetch_news(keyword, limit=3):
@@ -74,10 +95,12 @@ def fetch_news(keyword, limit=3):
         if published_time < cutoff:
             continue
 
+        title = clean_title(entry.title)
+        original_url = get_original_url(entry.link)
+
         news.append({
-            "keyword": keyword,
-            "title": entry.title,
-            "link": entry.link,
+            "title": title,
+            "link": original_url,
             "published_time": published_time
         })
 
@@ -123,15 +146,11 @@ def build_message():
 
         message += f"<b>■ {html.escape(group_name)}</b>\n"
 
-        for idx, article in enumerate(group_articles[:15], 1):
-            keyword = html.escape(article["keyword"])
+        for article in group_articles[:15]:
             title = html.escape(article["title"])
-            link = html.escape(article["link"])
+            link = html.escape(article["link"], quote=True)
 
-            message += (
-                f'{idx}. [{keyword}] '
-                f'<a href="{link}">{title}</a>\n'
-            )
+            message += f'• <a href="{link}">{title}</a>\n'
 
         message += "\n"
         total_count += len(group_articles[:15])
