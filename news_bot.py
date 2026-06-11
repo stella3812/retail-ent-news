@@ -60,9 +60,7 @@ def get_original_url(url):
             url,
             allow_redirects=True,
             timeout=10,
-            headers={
-                "User-Agent": "Mozilla/5.0"
-            }
+            headers={"User-Agent": "Mozilla/5.0"}
         )
         return response.url
     except Exception:
@@ -81,7 +79,7 @@ def fetch_news(keyword, limit=3):
 
     news = []
     now = datetime.now(timezone.utc)
-    cutoff = now - timedelta(hours=48)
+    cutoff = now - timedelta(hours=12)
 
     for entry in feed.entries:
         if not hasattr(entry, "published_parsed"):
@@ -110,53 +108,45 @@ def fetch_news(keyword, limit=3):
     return news
 
 
-def build_message():
+def build_group_message(group_name, keywords):
     today = datetime.now().strftime("%Y-%m-%d")
 
     message = (
-        f"<b>[{today} 유통/엔터 뉴스]</b>\n"
-        f"최근 48시간 기준\n\n"
+        f"<b>[{today} {html.escape(group_name)} 뉴스]</b>\n"
+        f"최근 12시간 기준\n\n"
     )
 
     seen_titles = set()
-    total_count = 0
+    group_articles = []
 
-    for group_name, keywords in KEYWORD_GROUPS.items():
-        group_articles = []
+    for keyword in keywords:
+        articles = fetch_news(keyword)
 
-        for keyword in keywords:
-            articles = fetch_news(keyword)
+        for article in articles:
+            title_key = normalize_title(article["title"])
 
-            for article in articles:
-                title_key = normalize_title(article["title"])
+            if title_key in seen_titles:
+                continue
 
-                if title_key in seen_titles:
-                    continue
+            seen_titles.add(title_key)
+            group_articles.append(article)
 
-                seen_titles.add(title_key)
-                group_articles.append(article)
+    if not group_articles:
+        message += f"최근 12시간 내 {html.escape(group_name)} 관련 뉴스가 없습니다."
+        return message
 
-        if not group_articles:
-            continue
+    group_articles.sort(
+        key=lambda x: x["published_time"],
+        reverse=True
+    )
 
-        group_articles.sort(
-            key=lambda x: x["published_time"],
-            reverse=True
-        )
+    message += f"<b>■ {html.escape(group_name)}</b>\n"
 
-        message += f"<b>■ {html.escape(group_name)}</b>\n"
+    for article in group_articles[:15]:
+        title = html.escape(article["title"])
+        link = html.escape(article["link"], quote=True)
 
-        for article in group_articles[:15]:
-            title = html.escape(article["title"])
-            link = html.escape(article["link"], quote=True)
-
-            message += f'• <a href="{link}">{title}</a>\n'
-
-        message += "\n"
-        total_count += len(group_articles[:15])
-
-    if total_count == 0:
-        message += "최근 48시간 내 유통/엔터 관련 뉴스가 없습니다."
+        message += f'• <a href="{link}">{title}</a>\n'
 
     return message
 
@@ -201,5 +191,6 @@ def send_telegram(text):
 
 
 if __name__ == "__main__":
-    message = build_message()
-    send_telegram(message)
+    for group_name, keywords in KEYWORD_GROUPS.items():
+        message = build_group_message(group_name, keywords)
+        send_telegram(message)
