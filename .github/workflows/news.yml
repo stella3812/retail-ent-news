@@ -1,24 +1,31 @@
-name: Retail Ent News Bot
+name: News Bot
 
 on:
   schedule:
-    - cron: "0 22 * * *"  # 한국시간 매일 오전 7시
+    - cron: '0 22 * * *'
+    - cron: '0 10 * * *'
+
   workflow_dispatch:
 
 jobs:
-  send-news:
+  run-news-bot:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - run: pip install -r requirements.txt
+      - name: Install packages
+        run: |
+          pip install -r requirements.txt
 
-      - run: python news_bot.py
+      - name: Run bot
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python news_bot.py
